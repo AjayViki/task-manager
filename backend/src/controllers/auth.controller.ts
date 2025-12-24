@@ -63,7 +63,15 @@ export const login = async (req: Request<{}, {}, LoginBody>, res: Response) => {
       expiresIn: "1d",
     });
 
-    return res.json({ token });
+    // return res.json({ token });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: false, // true in production (https)
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    });
+
+    return res.json({ message: "Login successful" });
   } catch (error) {
     console.error("LOGIN ERROR:", error);
     return res.status(500).json({ message: "Server error" });
