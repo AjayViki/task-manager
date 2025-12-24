@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 import dotenv from "dotenv";
 import { User } from "../entities/User";
 import { Task } from "../entities/Task";
+import { Category } from "../entities/Category";
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME,
   synchronize: true, // dev only
   logging: false,
-  entities: [User, Task],
+  entities: [User, Task, Category],
 });
 
 export const connectDB = async () => {

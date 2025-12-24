@@ -34,6 +34,33 @@ export const getTasks = async (req: Request, res: Response) => {
   }
 };
 
+export const getTaskById = async (req: Request, res: Response) => {
+  try {
+    const taskId = Number(req.params.id);
+
+    if (isNaN(taskId)) {
+      return res.status(400).json({ message: "Invalid task ID" });
+    }
+
+    const taskRepo = AppDataSource.getRepository(Task);
+
+    const task = await taskRepo.findOne({
+      where: {
+        id: taskId,
+        user: { id: req.user!.id }, // 🔐 security check
+      },
+    });
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    return res.json(task);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch task" });
+  }
+};
+
 export const updateTask = async (req: Request, res: Response) => {
   try {
     const taskRepo = AppDataSource.getRepository(Task);
