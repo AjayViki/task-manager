@@ -1,21 +1,50 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../config/db";
 import { Task } from "../entities/Task";
+import { Category } from "../entities/Category";
 
 export const createTask = async (req: Request, res: Response) => {
   try {
     const taskRepo = AppDataSource.getRepository(Task);
+    const categoryRepo = AppDataSource.getRepository(Category);
 
-    const task = taskRepo.create({
-      ...req.body,
-      user: { id: req.user!.id }, // req.user added by auth middleware
+    const { categoryId, ...taskData } = req.body;
+
+    // ✅ create empty Task (safe)
+    const task = taskRepo.create();
+    Object.assign(task, {
+      ...taskData,
+      user: { id: req.user!.id },
     });
+
+    if (categoryId) {
+      const category = await categoryRepo.findOne({
+        where: {
+          id: categoryId,
+          user: { id: req.user!.id },
+        },
+      });
+
+      if (!category) {
+        return res.status(400).json({
+          message: "Invalid category",
+        });
+      }
+
+      task.category = category;
+    }
 
     await taskRepo.save(task);
 
-    return res.status(201).json(task);
+    return res.status(201).json({
+      message: "Task created successfully",
+      task,
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to create task" });
+    console.error(error);
+    return res.status(500).json({
+      message: "Failed to create task",
+    });
   }
 };
 
@@ -63,49 +92,73 @@ export const getTaskById = async (req: Request, res: Response) => {
 
 export const updateTask = async (req: Request, res: Response) => {
   try {
-    const taskRepo = AppDataSource.getRepository(Task);
     const { id } = req.params;
+    const { categoryId, ...data } = req.body;
+
+    const taskRepo = AppDataSource.getRepository(Task);
+    const categoryRepo = AppDataSource.getRepository(Category);
 
     const task = await taskRepo.findOne({
-      where: {
-        id: Number(id),
-        user: { id: req.user!.id },
-      },
+      where: { id: Number(id), user: { id: req.user!.id } },
     });
 
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    taskRepo.merge(task, req.body);
+    if (categoryId !== undefined) {
+      if (categoryId === null) {
+        task.category = undefined;
+      } else {
+        const category = await categoryRepo.findOne({
+          where: { id: categoryId, user: { id: req.user!.id } },
+        });
+
+        if (!category) {
+          return res.status(400).json({ message: "Invalid category" });
+        }
+
+        task.category = category;
+      }
+    }
+
+    taskRepo.merge(task, data);
     await taskRepo.save(task);
 
-    return res.json(task);
+    return res.json({
+      message: "Task updated successfully",
+      task,
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to update task" });
+    return res.status(500).json({
+      message: "Failed to update task",
+    });
   }
 };
 
 export const deleteTask = async (req: Request, res: Response) => {
   try {
-    const taskRepo = AppDataSource.getRepository(Task);
     const { id } = req.params;
+    const taskRepo = AppDataSource.getRepository(Task);
 
     const task = await taskRepo.findOne({
-      where: {
-        id: Number(id),
-        user: { id: req.user!.id },
-      },
+      where: { id: Number(id), user: { id: req.user!.id } },
     });
 
     if (!task) {
-      return res.status(404).json({ message: "Task not found" });
+      return res.status(404).json({
+        message: "Task not found",
+      });
     }
 
     await taskRepo.remove(task);
 
-    return res.json({ message: "Task deleted successfully" });
+    return res.json({
+      message: "Task deleted successfully",
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to delete task" });
+    return res.status(500).json({
+      message: "Failed to delete task",
+    });
   }
 };

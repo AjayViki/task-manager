@@ -8,7 +8,10 @@ import {
   Select,
   message,
   DatePicker,
+  Form,
+  Space,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
@@ -20,9 +23,15 @@ import {
   updateTask,
   fetchTaskById,
 } from "../store/thunks/task.thunks";
+import { fetchCategories } from "../store/thunks/category.thunks";
 import { logout } from "../store/thunks/auth.thunks";
-import { Task, TaskForm, TaskPriority } from "../store/types/task.types";
-import type { ColumnsType } from "antd/es/table";
+
+import {
+  Category,
+  Task,
+  TaskForm,
+  TaskPriority,
+} from "../store/types/task.types";
 
 const Tasks = () => {
   const dispatch = useAppDispatch();
@@ -31,6 +40,9 @@ const Tasks = () => {
   const { tasks, loading, selectedTask } = useAppSelector(
     (state) => state.tasks
   );
+  const categories = useAppSelector(
+    (state) => state.categories.list
+  ) as Category[];
 
   const [open, setOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -40,6 +52,7 @@ const Tasks = () => {
     priority: "Medium",
     status: "Pending",
     dueDate: null,
+    categoryId: null,
   });
 
   const [statusFilter, setStatusFilter] = useState<
@@ -50,12 +63,15 @@ const Tasks = () => {
     "All" | "Low" | "Medium" | "High"
   >("All");
 
-  /* 🔹 Load tasks */
+  const [categoryFilter, setCategoryFilter] = useState<number | "All">("All");
+
+  /* ===== LOAD DATA ===== */
   useEffect(() => {
     dispatch(fetchTasks());
+    dispatch(fetchCategories());
   }, [dispatch]);
 
-  /* 🔹 Populate form on edit */
+  /* ===== EDIT MODE ===== */
   useEffect(() => {
     if (selectedTask) {
       setForm({
@@ -63,11 +79,12 @@ const Tasks = () => {
         priority: selectedTask.priority,
         status: selectedTask.status,
         dueDate: selectedTask.dueDate ?? null,
+        categoryId: selectedTask.category?.id ?? null,
       });
     }
   }, [selectedTask]);
 
-  /* 🔹 Helper to update form safely */
+  /* ===== HELPERS ===== */
   const updateForm = <K extends keyof TaskForm>(key: K, value: TaskForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -78,11 +95,10 @@ const Tasks = () => {
       priority: "Medium",
       status: "Pending",
       dueDate: null,
+      categoryId: null,
     });
     setIsEdit(false);
   };
-
-  /* ===== CRUD ===== */
 
   const validateForm = () => {
     if (!form.title.trim()) {
@@ -90,17 +106,6 @@ const Tasks = () => {
       return false;
     }
 
-    if (!form.priority) {
-      message.error("Priority is required");
-      return false;
-    }
-
-    if (!form.status) {
-      message.error("Status is required");
-      return false;
-    }
-
-    // ✅ Due Date validation
     if (form.dueDate && dayjs(form.dueDate).isBefore(dayjs(), "day")) {
       message.error("Due date cannot be in the past");
       return false;
@@ -109,13 +114,19 @@ const Tasks = () => {
     return true;
   };
 
+  /* ===== CRUD ===== */
   const handleCreate = async () => {
     if (!validateForm()) return;
 
-    await dispatch(createTask(form));
-    setOpen(false);
-    resetForm();
-    message.success("Task created");
+    try {
+      const res = await dispatch(createTask(form)).unwrap();
+      dispatch(fetchTasks());
+      message.success(res.message); // 👈 backend message
+      setOpen(false);
+      resetForm();
+    } catch (error: any) {
+      message.error(error);
+    }
   };
 
   const handleEdit = async (id: number) => {
@@ -125,46 +136,45 @@ const Tasks = () => {
   };
 
   const handleUpdate = async () => {
-    if (!selectedTask) return;
-    if (!validateForm()) return;
-    console.log(form);
-    await dispatch(
-      updateTask({
-        id: selectedTask.id,
-        data: form,
-      })
-    );
+    if (!selectedTask || !validateForm()) return;
 
-    setOpen(false);
-    resetForm();
-    message.success("Task updated");
+    try {
+      const res = await dispatch(
+        updateTask({
+          id: selectedTask.id,
+          data: form,
+        })
+      ).unwrap();
+      dispatch(fetchTasks());
+      message.success(res.message); // 👈 backend message
+      setOpen(false);
+      resetForm();
+    } catch (error: any) {
+      message.error(error);
+    }
   };
 
   const handleDelete = async (id: number) => {
-    await dispatch(deleteTask(id));
-    message.success("Task deleted");
+    try {
+      const res = await dispatch(deleteTask(id)).unwrap();
+      message.success(res.message);
+    } catch (error: any) {
+      message.error(error);
+    }
   };
 
-  const handleLogout = async () => {
-    await dispatch(logout());
-    navigate("/login");
-  };
-
-  /* ===== TABLE ===== */
-
+  /* ===== FILTERING ===== */
   const filteredTasks = tasks.filter((task) => {
     const statusMatch = statusFilter === "All" || task.status === statusFilter;
 
     const priorityMatch =
       priorityFilter === "All" || task.priority === priorityFilter;
 
-    return statusMatch && priorityMatch;
-  });
+    const categoryMatch =
+      categoryFilter === "All" || task.category?.id === categoryFilter;
 
-  const isOverdue = (task: Task) =>
-    task.dueDate &&
-    task.status !== "Completed" &&
-    dayjs(task.dueDate).isBefore(dayjs(), "day");
+    return statusMatch && priorityMatch && categoryMatch;
+  });
 
   const priorityOrder: Record<TaskPriority, number> = {
     High: 3,
@@ -172,13 +182,20 @@ const Tasks = () => {
     Low: 1,
   };
 
+  /* ===== TABLE ===== */
   const columns: ColumnsType<Task> = [
     { title: "Title", dataIndex: "title" },
 
     {
+      title: "Category",
+      dataIndex: ["category", "name"],
+      render: (name?: string) => name ?? "—",
+    },
+
+    {
       title: "Status",
       dataIndex: "status",
-      render: (status: string) => (
+      render: (status) => (
         <Tag color={status === "Completed" ? "green" : "orange"}>{status}</Tag>
       ),
     },
@@ -187,7 +204,7 @@ const Tasks = () => {
       title: "Priority",
       dataIndex: "priority",
       sorter: (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority],
-      render: (priority: TaskPriority) => (
+      render: (priority) => (
         <Tag
           color={
             priority === "High"
@@ -225,109 +242,160 @@ const Tasks = () => {
     },
   ];
 
+  /* ===== UI ===== */
   return (
-    <div className="p-6">
-      <div className="flex justify-between mb-4">
-        <h1 className="text-2xl font-bold">My Tasks</h1>
-        <div className="space-x-2">
-          <Button type="primary" onClick={() => setOpen(true)}>
-            + New Task
-          </Button>
-          <Button danger onClick={handleLogout}>
-            Logout
-          </Button>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold">My Tasks</h1>
         </div>
-      </div>
 
-      <div className="flex gap-3 mb-4">
-        <Select
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 180 }}
-        >
-          <Select.Option value="All">All Status</Select.Option>
-          <Select.Option value="Pending">Pending</Select.Option>
-          <Select.Option value="In Progress">In Progress</Select.Option>
-          <Select.Option value="Completed">Completed</Select.Option>
-        </Select>
+        {/* FILTERS */}
+        <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* LEFT: NEW TASK BUTTON */}
+            <div className="pr-2">
+              <Button type="primary">+ New Task</Button>
+            </div>
 
-        <Select
-          value={priorityFilter}
-          onChange={setPriorityFilter}
-          style={{ width: 180 }}
-        >
-          <Select.Option value="All">All Priority</Select.Option>
-          <Select.Option value="Low">Low</Select.Option>
-          <Select.Option value="Medium">Medium</Select.Option>
-          <Select.Option value="High">High</Select.Option>
-        </Select>
+            {/* RIGHT: FILTERS */}
+            <Form layout="inline">
+              <Space size="middle" wrap>
+                <Form.Item>
+                  <Select
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    placeholder="Category"
+                    style={{ width: 180 }}
+                  >
+                    <Select.Option value="All">All Categories</Select.Option>
+                    {categories.map((c) => (
+                      <Select.Option key={c.id} value={c.id}>
+                        {c.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
 
-        <Button
-          onClick={() => {
-            setStatusFilter("All");
-            setPriorityFilter("All");
+                <Form.Item>
+                  <Select
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    placeholder="Status"
+                    style={{ width: 160 }}
+                  >
+                    <Select.Option value="All">All Status</Select.Option>
+                    <Select.Option value="Pending">Pending</Select.Option>
+                    <Select.Option value="In Progress">
+                      In Progress
+                    </Select.Option>
+                    <Select.Option value="Completed">Completed</Select.Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item>
+                  <Select
+                    value={priorityFilter}
+                    onChange={setPriorityFilter}
+                    placeholder="Priority"
+                    style={{ width: 160 }}
+                  >
+                    <Select.Option value="All">All Priority</Select.Option>
+                    <Select.Option value="Low">Low</Select.Option>
+                    <Select.Option value="Medium">Medium</Select.Option>
+                    <Select.Option value="High">High</Select.Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item>
+                  <Button
+                    onClick={() => {
+                      setCategoryFilter("All");
+                      setStatusFilter("All");
+                      setPriorityFilter("All");
+                    }}
+                  >
+                    Reset
+                  </Button>
+                </Form.Item>
+              </Space>
+            </Form>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm">
+          <Table
+            rowKey="id"
+            dataSource={filteredTasks}
+            columns={columns}
+            loading={loading}
+            pagination={{ pageSize: 8 }}
+          />
+        </div>
+
+        {/* MODAL */}
+        <Modal
+          title={isEdit ? "Edit Task" : "Create Task"}
+          open={open}
+          onOk={isEdit ? handleUpdate : handleCreate}
+          onCancel={() => {
+            setOpen(false);
+            resetForm();
           }}
         >
-          Reset Filters
-        </Button>
+          <Input
+            placeholder="Task title"
+            className="mb-3"
+            value={form.title}
+            onChange={(e) => updateForm("title", e.target.value)}
+          />
+
+          <Select
+            value={form.categoryId ?? undefined}
+            onChange={(v) => updateForm("categoryId", v)}
+            className="mb-3 w-full"
+            placeholder="Select Category"
+            allowClear
+          >
+            {categories.map((c) => (
+              <Select.Option key={c.id} value={c.id}>
+                {c.name}
+              </Select.Option>
+            ))}
+          </Select>
+
+          <Select
+            value={form.status}
+            onChange={(v) => updateForm("status", v)}
+            className="mb-3 w-full"
+          >
+            <Select.Option value="Pending">Pending</Select.Option>
+            <Select.Option value="In Progress">In Progress</Select.Option>
+            <Select.Option value="Completed">Completed</Select.Option>
+          </Select>
+
+          <Select
+            value={form.priority}
+            onChange={(v) => updateForm("priority", v)}
+            className="mb-3 w-full"
+          >
+            <Select.Option value="Low">Low</Select.Option>
+            <Select.Option value="Medium">Medium</Select.Option>
+            <Select.Option value="High">High</Select.Option>
+          </Select>
+
+          <DatePicker
+            value={form.dueDate ? dayjs(form.dueDate) : null}
+            disabledDate={(current) =>
+              current && current < dayjs().startOf("day")
+            }
+            onChange={(date) =>
+              updateForm("dueDate", date ? date.toISOString() : null)
+            }
+            className="w-full"
+          />
+        </Modal>
       </div>
-
-      <Table
-        rowKey="id"
-        dataSource={filteredTasks}
-        columns={columns}
-        loading={loading}
-        rowClassName={(record) => (isOverdue(record) ? "bg-red-50" : "")}
-      />
-
-      {/* MODAL */}
-      <Modal
-        title={isEdit ? "Edit Task" : "Create Task"}
-        open={open}
-        onOk={isEdit ? handleUpdate : handleCreate}
-        onCancel={() => {
-          setOpen(false);
-          resetForm();
-        }}
-      >
-        <Input
-          placeholder="Task title"
-          className="mb-3"
-          value={form.title}
-          onChange={(e) => updateForm("title", e.target.value)}
-        />
-
-        <Select
-          value={form.priority}
-          onChange={(v) => updateForm("priority", v)}
-          className="mb-3 w-full"
-        >
-          <Select.Option value="Low">Low</Select.Option>
-          <Select.Option value="Medium">Medium</Select.Option>
-          <Select.Option value="High">High</Select.Option>
-        </Select>
-
-        <Select
-          value={form.status}
-          onChange={(v) => updateForm("status", v)}
-          className="mb-3 w-full"
-        >
-          <Select.Option value="Pending">Pending</Select.Option>
-          <Select.Option value="In Progress">In Progress</Select.Option>
-          <Select.Option value="Completed">Completed</Select.Option>
-        </Select>
-
-        <DatePicker
-          value={form.dueDate ? dayjs(form.dueDate) : null}
-          disabledDate={(current) =>
-            current && current < dayjs().startOf("day")
-          }
-          onChange={(date) =>
-            updateForm("dueDate", date ? date.toISOString() : null)
-          }
-          className="w-full"
-        />
-      </Modal>
     </div>
   );
 };

@@ -13,7 +13,6 @@ export class Task {
   @Column()
   title!: string;
 
-  // ✅ FIXED
   @Column({ type: "text", nullable: true })
   description!: string | null;
 
@@ -31,9 +30,10 @@ export class Task {
   })
   priority!: TaskPriority;
 
-  @Column({ type: "date", nullable: true })
-  dueDate!: string | null;
+  @Column({ type: "datetime", nullable: true })
+  dueDate!: Date | null;
 
+  // ✅ Task belongs to ONE Category
   @ManyToOne(() => Category, (category) => category.tasks, {
     nullable: true,
     eager: true,
@@ -41,6 +41,7 @@ export class Task {
   })
   category?: Category;
 
+  // ✅ Task belongs to ONE User
   @ManyToOne(() => User, (user) => user.id, {
     onDelete: "CASCADE",
   })

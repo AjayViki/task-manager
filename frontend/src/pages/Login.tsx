@@ -1,5 +1,5 @@
 import { Card, Input, Button, message } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { login } from "../store/thunks/auth.thunks";
@@ -7,10 +7,16 @@ import { login } from "../store/thunks/auth.thunks";
 const Login = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { loading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, loading } = useAppSelector((s) => s.auth);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/task", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleLogin = async () => {
     const res = await dispatch(login({ email, password }));
@@ -42,6 +48,9 @@ const Login = () => {
 
         <Button type="primary" block loading={loading} onClick={handleLogin}>
           Login
+        </Button>
+        <Button type="link" block onClick={() => navigate("/register")}>
+          Register
         </Button>
       </Card>
     </div>

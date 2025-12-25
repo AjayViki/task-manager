@@ -2,6 +2,23 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../../api/axios";
 import { User } from "../types/auth.types";
 
+export const registerUser = createAsyncThunk<
+  any,
+  { name: string; email: string; password: string },
+  { rejectValue: string }
+>("auth/register", async (data, { rejectWithValue }) => {
+  try {
+    const res = await api.post("/auth/register", data);
+
+    localStorage.setItem("token", res.data.token);
+    api.defaults.headers.common["Authorization"] = `Bearer ${res.data.token}`;
+
+    return res.data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || "Register failed");
+  }
+});
+
 export const login = createAsyncThunk<
   User,
   { email: string; password: string },
@@ -9,7 +26,7 @@ export const login = createAsyncThunk<
 >("auth/login", async (payload, { rejectWithValue }) => {
   try {
     await api.post("/auth/login", payload); // cookie set here
-    const res = await api.get("/user/me"); // fetch user via cookie
+    const res = await api.get("/users/me"); // fetch user via cookie
     return res.data.user;
   } catch {
     return rejectWithValue("Invalid credentials");

@@ -28,31 +28,46 @@ export const fetchTaskById = createAsyncThunk<
 });
 
 // Create task
-export const createTask = createAsyncThunk<
-  Task,
-  { title: string; priority: string }
->("tasks/createTask", async (payload) => {
-  const res = await api.post("/tasks", {
-    ...payload,
-    status: "Pending",
-  });
-  return res.data;
-});
+export const createTask = createAsyncThunk(
+  "tasks/create",
+  async (data: TaskForm, { rejectWithValue }) => {
+    try {
+      const res = await api.post("/tasks", data);
+      return res.data; // { message, task }
+    } catch (err: any) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to create task"
+      );
+    }
+  }
+);
 
 // Update task
-export const updateTask = createAsyncThunk<
-  Task,
-  { id: number; data: TaskForm }
->("tasks/updateTask", async ({ id, data }) => {
-  const res = await api.put(`/tasks/${id}`, data);
-  return res.data;
-});
+export const updateTask = createAsyncThunk(
+  "tasks/update",
+  async ({ id, data }: { id: number; data: TaskForm }, { rejectWithValue }) => {
+    try {
+      const res = await api.put(`/tasks/${id}`, data);
+      return res.data; // { message, task }
+    } catch (err: any) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to update task"
+      );
+    }
+  }
+);
 
 // Delete task
-export const deleteTask = createAsyncThunk<number, number>(
-  "tasks/deleteTask",
-  async (id) => {
-    await api.delete(`/tasks/${id}`);
-    return id;
+export const deleteTask = createAsyncThunk(
+  "tasks/delete",
+  async (id: number, { rejectWithValue }) => {
+    try {
+      const res = await api.delete(`/tasks/${id}`);
+      return res.data; // { message }
+    } catch (err: any) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to delete task"
+      );
+    }
   }
 );
