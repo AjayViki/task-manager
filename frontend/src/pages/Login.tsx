@@ -1,4 +1,4 @@
-import { Card, Input, Button, message } from "antd";
+import { Card, Input, Button, message, Form } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
@@ -19,11 +19,16 @@ const Login = () => {
   }, [isAuthenticated, navigate]);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      message.error("Email and password are required");
+      return;
+    }
+
     const res = await dispatch(login({ email, password }));
 
     if (login.fulfilled.match(res)) {
       message.success("Login successful");
-      navigate("/");
+      navigate("/task", { replace: true });
     } else {
       message.error("Invalid email or password");
     }
@@ -32,26 +37,31 @@ const Login = () => {
   return (
     <div className="flex h-screen items-center justify-center bg-gray-100">
       <Card title="Login" className="w-96">
-        <Input
-          placeholder="Email"
-          className="mb-3"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <Form layout="vertical">
+          <Form.Item>
+            <Input
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Form.Item>
 
-        <Input.Password
-          placeholder="Password"
-          className="mb-4"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <Form.Item>
+            <Input.Password
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Form.Item>
 
-        <Button type="primary" block loading={loading} onClick={handleLogin}>
-          Login
-        </Button>
-        <Button type="link" block onClick={() => navigate("/register")}>
-          Register
-        </Button>
+          <Button type="primary" block loading={loading} onClick={handleLogin}>
+            Login
+          </Button>
+
+          <Button type="link" block onClick={() => navigate("/register")}>
+            Register
+          </Button>
+        </Form>
       </Card>
     </div>
   );

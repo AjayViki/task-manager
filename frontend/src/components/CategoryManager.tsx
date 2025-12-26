@@ -8,6 +8,8 @@ import {
   fetchCategories,
 } from "../store/thunks/category.thunks";
 
+import { ExclamationCircleOutlined } from "@ant-design/icons";
+
 export default function CategoryManager() {
   const dispatch = useAppDispatch();
   const categories = useAppSelector((s) => s.categories.list);
@@ -34,14 +36,27 @@ export default function CategoryManager() {
     }
   };
 
-  const handleDeleteCategory = async (id: number) => {
-    try {
-      const res = await dispatch(deleteCategory(id)).unwrap();
-      dispatch(fetchCategories());
-      message.success(res.message);
-    } catch (error: any) {
-      message.error(error);
-    }
+  const { confirm } = Modal;
+  const handleDeleteCategory = (id: number) => {
+    confirm({
+      title: "Delete Category",
+      icon: <ExclamationCircleOutlined />,
+      content:
+        "Are you sure you want to delete this category? Tasks under this category will be uncategorized.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+
+      async onOk() {
+        try {
+          const res = await dispatch(deleteCategory(id)).unwrap();
+          dispatch(fetchCategories());
+          message.success(res.message);
+        } catch (error: any) {
+          message.error(error || "Failed to delete category");
+        }
+      },
+    });
   };
 
   /* ===== UI ===== */

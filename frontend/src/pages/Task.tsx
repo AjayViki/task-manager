@@ -14,7 +14,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
-
+import { orderBy, filter } from "lodash";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   fetchTasks,
@@ -154,27 +154,44 @@ const Tasks = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      const res = await dispatch(deleteTask(id)).unwrap();
-      message.success(res.message);
-    } catch (error: any) {
-      message.error(error);
-    }
+  const { confirm } = Modal;
+
+  const handleDelete = (id: number) => {
+    confirm({
+      title: "Delete Task",
+      content: "Are you sure you want to delete this task?",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+
+      async onOk() {
+        try {
+          const res = await dispatch(deleteTask(id)).unwrap();
+          dispatch(fetchTasks());
+          message.success(res.message);
+        } catch (error: any) {
+          message.error(error || "Failed to delete task");
+        }
+      },
+    });
   };
 
   /* ===== FILTERING ===== */
-  const filteredTasks = tasks.filter((task) => {
-    const statusMatch = statusFilter === "All" || task.status === statusFilter;
+  const filteredTasks = filter(tasks, (task: Task) => {
+    if (statusFilter !== "All" && task.status !== statusFilter) return false;
+    if (priorityFilter !== "All" && task.priority !== priorityFilter)
+      return false;
+    if (categoryFilter !== "All" && task.category?.id !== categoryFilter)
+      return false;
 
-    const priorityMatch =
-      priorityFilter === "All" || task.priority === priorityFilter;
-
-    const categoryMatch =
-      categoryFilter === "All" || task.category?.id === categoryFilter;
-
-    return statusMatch && priorityMatch && categoryMatch;
+    return true;
   });
+
+  // const sortedTasks = orderBy(
+  //   filteredTasks,
+  //   [(task: Task) => task.dueDate || ""],
+  //   ["asc"]
+  // );
 
   const priorityOrder: Record<TaskPriority, number> = {
     High: 3,
@@ -231,12 +248,14 @@ const Tasks = () => {
       title: "Actions",
       render: (_, record) => (
         <>
-          <Button size="small" onClick={() => handleEdit(record.id)}>
-            Edit
-          </Button>
-          <Button danger size="small" onClick={() => handleDelete(record.id)}>
-            Delete
-          </Button>
+          <Space size="middle" wrap>
+            <Button size="small" onClick={() => handleEdit(record.id)}>
+              Edit
+            </Button>
+            <Button danger size="small" onClick={() => handleDelete(record.id)}>
+              Delete
+            </Button>
+          </Space>
         </>
       ),
     },
@@ -246,17 +265,32 @@ const Tasks = () => {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">My Tasks</h1>
+        <div className="mb-6">
+          <Space size="middle" wrap>
+            <h1 className="text-2xl font-semibold text-gray-800">My Tasks</h1>
+
+            <Button
+              type="primary"
+              onClick={() => {
+                setForm({
+                  title: "",
+                  priority: "Medium",
+                  status: "Pending",
+                  dueDate: null,
+                  categoryId: null,
+                });
+                setOpen(true);
+              }}
+            >
+              + New Task
+            </Button>
+          </Space>
         </div>
 
         {/* FILTERS */}
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
+        <div className="bg-white p-4 rounded-lg shadow-sm">
           <div className="flex flex-wrap items-center gap-4">
             {/* LEFT: NEW TASK BUTTON */}
-            <div className="pr-2">
-              <Button type="primary">+ New Task</Button>
-            </div>
 
             {/* RIGHT: FILTERS */}
             <Form layout="inline">
@@ -323,7 +357,7 @@ const Tasks = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm mt-6">
           <Table
             rowKey="id"
             dataSource={filteredTasks}
@@ -343,57 +377,69 @@ const Tasks = () => {
             resetForm();
           }}
         >
-          <Input
-            placeholder="Task title"
-            className="mb-3"
-            value={form.title}
-            onChange={(e) => updateForm("title", e.target.value)}
-          />
+          <Form layout="vertical">
+            <Form.Item>
+              <Input
+                placeholder="Task title"
+                value={form.title}
+                onChange={(e) => updateForm("title", e.target.value)}
+              />
+            </Form.Item>
 
-          <Select
-            value={form.categoryId ?? undefined}
-            onChange={(v) => updateForm("categoryId", v)}
-            className="mb-3 w-full"
-            placeholder="Select Category"
-            allowClear
-          >
-            {categories.map((c) => (
-              <Select.Option key={c.id} value={c.id}>
-                {c.name}
-              </Select.Option>
-            ))}
-          </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <Form.Item>
+                <Select
+                  value={form.categoryId ?? undefined}
+                  onChange={(v) => updateForm("categoryId", v)}
+                  placeholder="Select Category"
+                  allowClear
+                >
+                  {categories.map((c) => (
+                    <Select.Option key={c.id} value={c.id}>
+                      {c.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
 
-          <Select
-            value={form.status}
-            onChange={(v) => updateForm("status", v)}
-            className="mb-3 w-full"
-          >
-            <Select.Option value="Pending">Pending</Select.Option>
-            <Select.Option value="In Progress">In Progress</Select.Option>
-            <Select.Option value="Completed">Completed</Select.Option>
-          </Select>
+              <Form.Item>
+                <Select
+                  value={form.status}
+                  onChange={(v) => updateForm("status", v)}
+                >
+                  <Select.Option value="Pending">Pending</Select.Option>
+                  <Select.Option value="In Progress">In Progress</Select.Option>
+                  <Select.Option value="Completed">Completed</Select.Option>
+                </Select>
+              </Form.Item>
+            </div>
 
-          <Select
-            value={form.priority}
-            onChange={(v) => updateForm("priority", v)}
-            className="mb-3 w-full"
-          >
-            <Select.Option value="Low">Low</Select.Option>
-            <Select.Option value="Medium">Medium</Select.Option>
-            <Select.Option value="High">High</Select.Option>
-          </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <Form.Item>
+                <Select
+                  value={form.priority}
+                  onChange={(v) => updateForm("priority", v)}
+                >
+                  <Select.Option value="Low">Low</Select.Option>
+                  <Select.Option value="Medium">Medium</Select.Option>
+                  <Select.Option value="High">High</Select.Option>
+                </Select>
+              </Form.Item>
 
-          <DatePicker
-            value={form.dueDate ? dayjs(form.dueDate) : null}
-            disabledDate={(current) =>
-              current && current < dayjs().startOf("day")
-            }
-            onChange={(date) =>
-              updateForm("dueDate", date ? date.toISOString() : null)
-            }
-            className="w-full"
-          />
+              <Form.Item>
+                <DatePicker
+                  value={form.dueDate ? dayjs(form.dueDate) : null}
+                  className="w-full"
+                  disabledDate={(current) =>
+                    current && current < dayjs().startOf("day")
+                  }
+                  onChange={(date) =>
+                    updateForm("dueDate", date ? date.toISOString() : null)
+                  }
+                />
+              </Form.Item>
+            </div>
+          </Form>
         </Modal>
       </div>
     </div>
