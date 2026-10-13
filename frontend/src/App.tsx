@@ -33,7 +33,7 @@ function App() {
         />
 
         {/* PUBLIC check*/}
-        {/*Creating a merge conflict*/}
+        {/*Creating a merge conflict for practice*/}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
