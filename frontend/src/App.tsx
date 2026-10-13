@@ -32,7 +32,7 @@ function App() {
           }
         />
 
-        {/* PUBLIC */}
+        {/* PUBLIC check*/}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
