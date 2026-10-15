@@ -40,6 +40,7 @@ const Login = () => {
       <Card title="Login" className="w-96">
         <Form layout="vertical">
           <Form.Item>
+            {/* Email */}
             <Input
               placeholder="Email"
               value={email}
