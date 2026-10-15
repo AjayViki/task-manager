@@ -36,9 +36,11 @@ const Login = () => {
 
   return (
     <div className="flex h-screen items-center justify-center bg-gray-100">
+      {/* Registary Form  */}
       <Card title="Login" className="w-96">
         <Form layout="vertical">
           <Form.Item>
+            {/* Email */}
             <Input
               placeholder="Email"
               value={email}
